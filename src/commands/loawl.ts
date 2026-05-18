@@ -1,45 +1,34 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import GuildConfig from '../models/GuildConfig';
 export default {
-  data: new SlashCommandBuilder()
-    .setName('loawl')
-    .setDescription('Manage role whitelist for LOA submissions')
-    .addSubcommand(sub => sub.setName('add').setDescription('Add a role to the whitelist').addRoleOption(o=>o.setName('role').setDescription('Role to add').setRequired(true)))
-    .addSubcommand(sub => sub.setName('remove').setDescription('Remove a role from the whitelist').addRoleOption(o=>o.setName('role').setDescription('Role to remove').setRequired(true)))
-    .addSubcommand(sub => sub.setName('list').setDescription('List whitelisted roles'))
-    .setDefaultMemberPermissions('0'),
-  async execute(interaction: any) {
-    const config = await GuildConfig.findOne({ guildId: interaction.guildId });
-    if (!config) return interaction.reply({ content: '❌ Not configured. Use /setup.', ephemeral: true });
-    const member = await interaction.guild.members.fetch(interaction.user.id);
-    if (!config.adminRoles.some(roleId => member.roles.cache.has(roleId)) && !member.permissions.has('Administrator'))
-      return interaction.reply({ content: '❌ Admin only.', ephemeral: true });
-
-    const sub = interaction.options.getSubcommand();
-    const role = interaction.options.getRole('role');
-
-    if (sub === 'add') {
-      if (config.whitelistRoles.includes(role.id))
-        return interaction.reply({ content: '⚠️ Role is already whitelisted.', ephemeral: true });
-      config.whitelistRoles.push(role.id);
-      await config.save();
-      const embed = new EmbedBuilder().setColor(0x57F287).setTitle('✅ Whitelist Updated').setDescription('Added <@&' + role.id + '> to whitelist.');
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+    data: new SlashCommandBuilder()
+        .setName('loawl').setDescription('🛡️ Whitelist management')
+        .addSubcommand(s => s.setName('add').setDescription('Add role to whitelist').addRoleOption(o => o.setName('role').setDescription('Role').setRequired(true)))
+        .addSubcommand(s => s.setName('remove').setDescription('Remove role from whitelist').addRoleOption(o => o.setName('role').setDescription('Role').setRequired(true)))
+        .addSubcommand(s => s.setName('list').setDescription('List whitelisted roles'))
+        .setDefaultMemberPermissions('0'),
+    async execute(interaction: any) {
+        const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
+        if (!cfg) return interaction.reply({ content: 'Not configured.', ephemeral: true });
+        const mem = await interaction.guild.members.fetch(interaction.user.id);
+        if (!cfg.adminRoles.some(r => mem.roles.cache.has(r)) && !mem.permissions.has('Administrator')) return interaction.reply({ content: 'Admin only.', ephemeral: true });
+        const sub = interaction.options.getSubcommand();
+        const role = interaction.options.getRole('role');
+        if (sub === 'add') {
+            if (cfg.whitelistRoles.includes(role.id)) return interaction.reply({ content: 'Already whitelisted.', ephemeral: true });
+            cfg.whitelistRoles.push(role.id);
+            await cfg.save();
+            return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('✅ Added').setDescription('<@&' + role.id + '> added to whitelist.')], ephemeral: true });
+        } else if (sub === 'remove') {
+            const idx = cfg.whitelistRoles.indexOf(role.id);
+            if (idx === -1) return interaction.reply({ content: 'Not in whitelist.', ephemeral: true });
+            cfg.whitelistRoles.splice(idx, 1);
+            await cfg.save();
+            return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('❌ Removed').setDescription('<@&' + role.id + '> removed from whitelist.')], ephemeral: true });
+        } else {
+            if (!cfg.whitelistRoles.length) return interaction.reply({ content: 'Whitelist empty.', ephemeral: true });
+            const list = cfg.whitelistRoles.map(id => '<@&' + id + '>').join(', ');
+            return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xCFB87C).setTitle('🛡️ Whitelisted Roles').setDescription(list)] });
+        }
     }
-    else if (sub === 'remove') {
-      const idx = config.whitelistRoles.indexOf(role.id);
-      if (idx === -1) return interaction.reply({ content: '⚠️ Role is not in the whitelist.', ephemeral: true });
-      config.whitelistRoles.splice(idx, 1);
-      await config.save();
-      const embed = new EmbedBuilder().setColor(0xED4245).setTitle('❌ Whitelist Updated').setDescription('Removed <@&' + role.id + '> from whitelist.');
-      return interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-    else if (sub === 'list') {
-      if (config.whitelistRoles.length === 0)
-        return interaction.reply({ content: '📋 Whitelist is empty. Anyone can submit LOAs.', ephemeral: true });
-      const roles = config.whitelistRoles.map(id => '<@&' + id + '>').join(', ');
-      const embed = new EmbedBuilder().setColor(0x5865F2).setTitle('🛡️ Whitelisted Roles').setDescription(roles).setFooter({ text: 'Only members with these roles can submit LOA requests' });
-      return interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-  }
 };

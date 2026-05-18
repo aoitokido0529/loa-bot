@@ -7,7 +7,7 @@ export interface ILOA extends Document {
     reason: string;
     startDate: Date;
     endDate: Date;
-    status: string;
+    status: 'pending' | 'approved' | 'denied' | 'cancelled' | 'expired';
     department: string;
     approvedBy?: string;
     approvedAt?: Date;

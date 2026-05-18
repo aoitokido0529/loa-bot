@@ -1,37 +1,27 @@
 import {
-    Events,
-    Collection,
-    EmbedBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    ActionRowBuilder,
-    ChatInputCommandInteraction,
-    ButtonInteraction,
-    ModalSubmitInteraction,
-    AutocompleteInteraction
+    Events, Collection, EmbedBuilder, ButtonBuilder, ButtonStyle,
+    ActionRowBuilder, ChatInputCommandInteraction, ButtonInteraction,
+    ModalSubmitInteraction, AutocompleteInteraction
 } from 'discord.js';
 import LOA from '../models/LOA';
 import GuildConfig from '../models/GuildConfig';
 import Logger from '../utils/logger';
 
-const logger = new Logger();
+const log = new Logger();
 
 export default {
     name: Events.InteractionCreate,
     async execute(interaction: any, client: any) {
         try {
-            if (interaction.isChatInputCommand()) await handleCommand(interaction, client);
-            else if (interaction.isButton()) await handleButton(interaction);
+            if (interaction.isChatInputCommand()) await handleCmd(interaction, client);
+            else if (interaction.isButton()) await handleBtn(interaction);
             else if (interaction.isModalSubmit()) await handleModal(interaction);
             else if (interaction.isAutocomplete()) await handleAutocomplete(interaction, client);
-        } catch (e) {
-            logger.error('Interaction error:', e);
-            await sendError(interaction);
-        }
+        } catch (e) { log.error('Interaction error', e); sendErr(interaction); }
     }
 };
 
-async function handleCommand(interaction: ChatInputCommandInteraction, client: any) {
+async function handleCmd(interaction: ChatInputCommandInteraction, client: any) {
     const cmd = client.commands.get(interaction.commandName);
     if (!cmd) return;
     if (!checkCooldown(interaction, cmd, client)) return;
@@ -43,64 +33,48 @@ function checkCooldown(interaction: ChatInputCommandInteraction, cmd: any, clien
     if (!client.cooldowns.has(name)) client.cooldowns.set(name, new Collection());
     const now = Date.now();
     const timestamps = client.cooldowns.get(name) as Collection<string, number>;
-    const amount = (cmd.cooldown ?? 3) * 1000;
+    const amt = (cmd.cooldown ?? 3) * 1000;
     if (timestamps.has(interaction.user.id)) {
-        const exp = timestamps.get(interaction.user.id)! + amount;
+        const exp = timestamps.get(interaction.user.id)! + amt;
         if (now < exp) {
-            interaction.reply({ content: '⏰ Please wait ' + (exp - now) / 1000 + 's.', ephemeral: true });
+            interaction.reply({ content: '⏰ Please wait ' + ((exp - now) / 1000).toFixed(1) + 's.', ephemeral: true });
             return false;
         }
     }
     timestamps.set(interaction.user.id, now);
-    setTimeout(() => timestamps.delete(interaction.user.id), amount);
+    setTimeout(() => timestamps.delete(interaction.user.id), amt);
     return true;
 }
 
-async function handleButton(interaction: ButtonInteraction) {
+async function handleBtn(interaction: ButtonInteraction) {
     if (!interaction.customId.startsWith('loa_')) return;
     const parts = interaction.customId.split('_');
     if (parts.length < 3) return;
-    const action = parts[1],
-        loaId = parts[2];
+    const action = parts[1], loaId = parts[2];
     const loa = await LOA.findOne({ loaId });
     if (!loa) return interaction.reply({ content: '❌ LOA not found.', ephemeral: true });
-    const config = await GuildConfig.findOne({ guildId: interaction.guildId });
-    if (!config) return interaction.reply({ content: '❌ Not configured.', ephemeral: true });
+    const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
+    if (!cfg) return interaction.reply({ content: '❌ Not configured.', ephemeral: true });
     const member = await interaction.guild!.members.fetch(interaction.user.id);
-    const perm = member.roles.cache.has(config.staffRole ?? '') ||
-        config.adminRoles.some(roleId => member.roles.cache.has(roleId)) ||
-        member.permissions.has('Administrator');
+    const perm = member.roles.cache.has(cfg.staffRole ?? '') || cfg.adminRoles.some(r => member.roles.cache.has(r)) || member.permissions.has('Administrator');
 
     if (action === 'approve') {
         if (!perm) return interaction.reply({ content: '❌ No permission.', ephemeral: true });
-        loa.status = 'approved';
-        loa.approvedBy = interaction.user.id;
-        loa.approvedAt = new Date();
+        loa.status = 'approved'; loa.approvedBy = interaction.user.id; loa.approvedAt = new Date();
         await loa.save();
-        if (config.loaRole) {
-            const m = await interaction.guild!.members.fetch(loa.userId).catch(() => null);
-            if (m) await m.roles.add(config.loaRole).catch(() => {});
-        }
-        await interaction.update({ content: '✅ Approved!', components: [], embeds: [createLOAEmbed(loa)] });
+        if (cfg.loaRole) { const m = await interaction.guild!.members.fetch(loa.userId).catch(() => null); if (m) await m.roles.add(cfg.loaRole).catch(() => {}); }
+        await interaction.update({ content: '✅ Approved', components: [], embeds: [loaEmbed(loa)] });
     } else if (action === 'deny') {
         if (!perm) return interaction.reply({ content: '❌ No permission.', ephemeral: true });
-        loa.status = 'denied';
-        loa.deniedBy = interaction.user.id;
-        loa.deniedAt = new Date();
+        loa.status = 'denied'; loa.deniedBy = interaction.user.id; loa.deniedAt = new Date();
         await loa.save();
-        await interaction.update({ content: '❌ Denied.', components: [], embeds: [createLOAEmbed(loa)] });
+        await interaction.update({ content: '❌ Denied', components: [], embeds: [loaEmbed(loa)] });
     } else if (action === 'cancel') {
-        if (loa.userId !== interaction.user.id && !perm)
-            return interaction.reply({ content: '❌ Cannot cancel.', ephemeral: true });
-        loa.status = 'cancelled';
-        loa.cancelledBy = interaction.user.id;
-        loa.cancelledAt = new Date();
+        if (loa.userId !== interaction.user.id && !perm) return interaction.reply({ content: '❌ Cannot cancel.', ephemeral: true });
+        loa.status = 'cancelled'; loa.cancelledBy = interaction.user.id; loa.cancelledAt = new Date();
         await loa.save();
-        if (config.loaRole) {
-            const m = await interaction.guild!.members.fetch(loa.userId).catch(() => null);
-            if (m) await m.roles.remove(config.loaRole).catch(() => {});
-        }
-        await interaction.update({ content: '🚫 Cancelled.', components: [], embeds: [createLOAEmbed(loa)] });
+        if (cfg.loaRole) { const m = await interaction.guild!.members.fetch(loa.userId).catch(() => null); if (m) await m.roles.remove(cfg.loaRole).catch(() => {}); }
+        await interaction.update({ content: '🚫 Cancelled', components: [], embeds: [loaEmbed(loa)] });
     }
 }
 
@@ -108,10 +82,7 @@ async function handleModal(interaction: ModalSubmitInteraction) {
     if (interaction.customId.startsWith('loa_reason_')) {
         const parts = interaction.customId.replace('loa_reason_', '').split('_');
         if (parts.length < 4) return interaction.reply({ content: '❌ Invalid data.', ephemeral: true });
-        const type = parts[0],
-            start = new Date(parts[1]),
-            end = new Date(parts[2]),
-            dept = parts.slice(3).join('_');
+        const type = parts[0], start = new Date(parts[1]), end = new Date(parts[2]), dept = parts.slice(3).join('_');
         const reason = interaction.fields.getTextInputValue('reason');
         await submitLOA(interaction, type, start, end, dept, reason);
     } else if (interaction.customId === 'loa_custom_duration') {
@@ -125,41 +96,48 @@ async function handleModal(interaction: ModalSubmitInteraction) {
 }
 
 async function submitLOA(interaction: ModalSubmitInteraction, type: string, start: Date, end: Date, dept: string, reason: string) {
-    const config = await GuildConfig.findOne({ guildId: interaction.guildId });
-    if (!config) return interaction.reply({ content: '❌ Not configured.', ephemeral: true });
-    if (end <= start) return interaction.reply({ content: '❌ End must be after start.', ephemeral: true });
+    const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
+    if (!cfg) return interaction.reply({ content: '❌ Not configured.', ephemeral: true });
+    if (end <= start) return interaction.reply({ content: '❌ End date must be after start.', ephemeral: true });
     const days = Math.ceil((end.getTime() - start.getTime()) / 86400000);
-    if (days > config.maxLoaDuration) return interaction.reply({ content: '❌ Max ' + config.maxLoaDuration + ' days.', ephemeral: true });
-
-    if (config.whitelistRoles.length > 0) {
-        const member = await interaction.guild!.members.fetch(interaction.user.id);
-        const hasRole = member.roles.cache.some(r => config.whitelistRoles.includes(r.id));
-        if (!hasRole) return interaction.reply({ content: '❌ You are not authorized.', ephemeral: true });
+    if (days > cfg.maxLoaDuration) return interaction.reply({ content: '❌ Maximum ' + cfg.maxLoaDuration + ' days.', ephemeral: true });
+    if (cfg.whitelistRoles.length > 0) {
+        const mem = await interaction.guild!.members.fetch(interaction.user.id);
+        if (!mem.roles.cache.some(r => cfg.whitelistRoles.includes(r.id)))
+            return interaction.reply({ content: '❌ You are not whitelisted.', ephemeral: true });
     }
-
     const recent = await LOA.findOne({
-        userId: interaction.user.id,
-        guildId: interaction.guildId,
-        createdAt: { $gte: new Date(Date.now() - config.cooldownHours * 3600000) }
+        userId: interaction.user.id, guildId: interaction.guildId,
+        createdAt: { $gte: new Date(Date.now() - cfg.cooldownHours * 3600000) }
     }).sort({ createdAt: -1 });
     if (recent) {
-        const left = Math.ceil((recent.createdAt.getTime() + config.cooldownHours * 3600000 - Date.now()) / 3600000);
+        const left = Math.ceil((recent.createdAt.getTime() + cfg.cooldownHours * 3600000 - Date.now()) / 3600000);
         return interaction.reply({ content: '⏰ Cooldown. Wait ' + left + 'h.', ephemeral: true });
     }
     const loaId = (LOA as any).generateLOAId();
     const loa = new LOA({ loaId, guildId: interaction.guildId, userId: interaction.user.id, type, reason, startDate: start, endDate: end, department: dept, status: 'pending' });
     await loa.save();
 
-    const embed = new EmbedBuilder().setColor(0x5865F2).setTitle('📝 LOA Submitted')
-        .addFields([{ name: 'ID', value: '#' + loaId, inline: true }, { name: 'Type', value: type, inline: true }, { name: 'Duration', value: days + ' days', inline: true }, { name: 'Reason', value: reason }])
+    const embed = new EmbedBuilder().setColor(0xCFB87C).setTitle('📝 LOA Submitted')
+        .addFields([
+            { name: 'ID', value: '#' + loaId, inline: true },
+            { name: 'Type', value: type, inline: true },
+            { name: 'Duration', value: days + ' days', inline: true },
+            { name: 'Reason', value: reason }
+        ])
         .setTimestamp();
     await interaction.reply({ embeds: [embed], ephemeral: true });
 
-    if (config.logChannel) {
-        const ch = interaction.guild!.channels.cache.get(config.logChannel);
+    if (cfg.logChannel) {
+        const ch = interaction.guild!.channels.cache.get(cfg.logChannel);
         if (ch?.isTextBased()) {
-            const logEmbed = new EmbedBuilder().setColor(0xFEE75C).setTitle('⏳ New LOA')
-                .addFields([{ name: 'ID', value: '#' + loaId }, { name: 'User', value: '<@' + interaction.user.id + '>' }, { name: 'Type', value: type }, { name: 'Reason', value: reason }])
+            const logEmbed = new EmbedBuilder().setColor(0xCFB87C).setTitle('⏳ New LOA Request')
+                .addFields([
+                    { name: 'ID', value: '#' + loaId },
+                    { name: 'User', value: '<@' + interaction.user.id + '>' },
+                    { name: 'Type', value: type },
+                    { name: 'Reason', value: reason }
+                ])
                 .setTimestamp();
             const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
                 new ButtonBuilder().setCustomId('loa_approve_' + loaId).setLabel('Approve').setStyle(ButtonStyle.Success),
@@ -175,23 +153,28 @@ async function handleAutocomplete(interaction: AutocompleteInteraction, client: 
     if (cmd?.autocomplete) await cmd.autocomplete(interaction).catch(() => interaction.respond([]));
 }
 
-async function sendError(interaction: any) {
+async function sendErr(interaction: any) {
     try {
-        if (interaction.replied || interaction.deferred) await interaction.followUp({ content: '❌ An error occurred.', ephemeral: true });
-        else await interaction.reply({ content: '❌ An error occurred.', ephemeral: true });
+        const payload = { content: '❌ An unexpected error occurred.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
+        else await interaction.reply(payload);
     } catch {}
 }
 
-function createLOAEmbed(loa: any) {
-    const colors: Record<string, number> = { pending: 0xFEE75C, approved: 0x57F287, denied: 0xED4245, cancelled: 0x95A5A6, expired: 0x95A5A6 };
-    const emojis: Record<string, string> = { pending: '⏳', approved: '✅', denied: '❌', cancelled: '🚫', expired: '⏰' };
+function loaEmbed(loa: any) {
+    const colors: Record<string, number> = {
+        pending: 0xCFB87C, approved: 0x57F287, denied: 0xED4245, cancelled: 0x95A5A6, expired: 0x95A5A6
+    };
+    const emojis: Record<string, string> = {
+        pending: '⏳', approved: '✅', denied: '❌', cancelled: '🚫', expired: '⏰'
+    };
     return {
-        color: colors[loa.status] || 0x5865F2,
+        color: colors[loa.status] || 0xCFB87C,
         title: emojis[loa.status] + ' LOA #' + loa.loaId,
         fields: [
             { name: 'User', value: '<@' + loa.userId + '>', inline: true },
             { name: 'Type', value: loa.type, inline: true },
-            { name: 'Status', value: loa.status.toUpperCase(), inline: true },
+            { name: 'Status', value: loa.status.charAt(0).toUpperCase() + loa.status.slice(1), inline: true },
             { name: 'Start', value: '<t:' + Math.floor(loa.startDate.getTime() / 1000) + ':D>', inline: true },
             { name: 'End', value: '<t:' + Math.floor(loa.endDate.getTime() / 1000) + ':D>', inline: true },
             { name: 'Reason', value: loa.reason }

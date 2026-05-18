@@ -45,16 +45,24 @@ const LOASchema = new mongoose_1.Schema({
     endDate: { type: Date, required: true },
     status: { type: String, enum: ['pending', 'approved', 'denied', 'cancelled', 'expired'], default: 'pending', index: true },
     department: { type: String, default: 'General' },
-    approvedBy: String, approvedAt: Date, deniedBy: String, deniedAt: Date,
+    approvedBy: String, approvedAt: Date,
+    deniedBy: String, deniedAt: Date,
     cancelledBy: String, cancelledAt: Date,
     reminderSent: { type: Boolean, default: false }
 }, { timestamps: true });
 LOASchema.index({ guildId: 1, status: 1 });
 LOASchema.index({ guildId: 1, userId: 1, createdAt: -1 });
 LOASchema.index({ endDate: 1, status: 1 });
-LOASchema.statics.generateLOAId = function () { return 'LOA-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(); };
-LOASchema.pre('save', function (next) { if (this.endDate <= this.startDate)
-    return next(new Error('End date must be after start')); next(); });
+LOASchema.statics.generateLOAId = function () {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return 'LOA-' + timestamp + '-' + random;
+};
+LOASchema.pre('save', function (next) {
+    if (this.endDate <= this.startDate)
+        return next(new Error('End date must be after start date'));
+    next();
+});
 exports.LOA = mongoose_1.default.model('LOA', LOASchema);
 exports.default = exports.LOA;
 //# sourceMappingURL=LOA.js.map

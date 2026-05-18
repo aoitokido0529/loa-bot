@@ -5,8 +5,8 @@ interface Page {
 }
 export declare class Pagination {
     private pages;
-    private currentPage;
     private timeout;
+    private currentPage;
     constructor(pages: Page[], timeout?: number);
     start(interaction: any): Promise<void>;
 }

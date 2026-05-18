@@ -7,11 +7,11 @@ const discord_js_1 = require("discord.js");
 const LOA_1 = __importDefault(require("../../models/LOA"));
 const GuildConfig_1 = __importDefault(require("../../models/GuildConfig"));
 exports.default = {
-    data: new discord_js_1.SlashCommandBuilder().setName('loa').setDescription('Cancel').addSubcommand(s => s.setName('cancel').setDescription('Cancel').addStringOption(o => o.setName('id').setDescription('LOA ID').setRequired(true).setAutocomplete(true))),
+    data: new discord_js_1.SlashCommandBuilder().setName('loa').setDescription('Cancel').addSubcommand(s => s.setName('cancel').setDescription('Cancel a LOA').addStringOption(o => o.setName('id').setDescription('LOA ID').setRequired(true).setAutocomplete(true))),
     async autocomplete(interaction) {
-        const config = await GuildConfig_1.default.findOne({ guildId: interaction.guildId });
-        const member = await interaction.guild.members.fetch(interaction.user.id);
-        const isStaff = member.roles.cache.has(config?.staffRole ?? '') || config?.adminRoles.some(roleId => member.roles.cache.has(roleId)) || member.permissions.has('Administrator');
+        const cfg = await GuildConfig_1.default.findOne({ guildId: interaction.guildId });
+        const mem = await interaction.guild.members.fetch(interaction.user.id);
+        const isStaff = mem.roles.cache.has(cfg?.staffRole ?? '') || cfg?.adminRoles.some(r => mem.roles.cache.has(r)) || mem.permissions.has('Administrator');
         const q = { guildId: interaction.guildId, status: { $in: ['pending', 'approved'] }, loaId: { $regex: interaction.options.getFocused(), $options: 'i' } };
         if (!isStaff)
             q.userId = interaction.user.id;
@@ -22,19 +22,19 @@ exports.default = {
         const loa = await LOA_1.default.findOne({ loaId: interaction.options.getString('id'), guildId: interaction.guildId });
         if (!loa)
             return interaction.reply({ content: 'Not found.', ephemeral: true });
-        const config = await GuildConfig_1.default.findOne({ guildId: interaction.guildId });
-        const member = await interaction.guild.members.fetch(interaction.user.id);
-        const isStaff = member.roles.cache.has(config?.staffRole ?? '') || config?.adminRoles.some(roleId => member.roles.cache.has(roleId)) || member.permissions.has('Administrator');
+        const cfg = await GuildConfig_1.default.findOne({ guildId: interaction.guildId });
+        const mem = await interaction.guild.members.fetch(interaction.user.id);
+        const isStaff = mem.roles.cache.has(cfg?.staffRole ?? '') || cfg?.adminRoles.some(r => mem.roles.cache.has(r)) || mem.permissions.has('Administrator');
         if (loa.userId !== interaction.user.id && !isStaff)
             return interaction.reply({ content: 'Cannot cancel.', ephemeral: true });
         loa.status = 'cancelled';
         loa.cancelledBy = interaction.user.id;
         loa.cancelledAt = new Date();
         await loa.save();
-        if (config?.loaRole) {
+        if (cfg?.loaRole) {
             const m = await interaction.guild.members.fetch(loa.userId).catch(() => null);
             if (m)
-                await m.roles.remove(config.loaRole).catch(() => { });
+                await m.roles.remove(cfg.loaRole).catch(() => { });
         }
         await interaction.reply({ embeds: [new discord_js_1.EmbedBuilder().setColor(0x95A5A6).setTitle('Cancelled').setDescription('#' + loa.loaId + ' cancelled')] });
     }

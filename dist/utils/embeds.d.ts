@@ -1,13 +1,13 @@
 import { EmbedBuilder, ColorResolvable } from 'discord.js';
-export declare class EmbedUtils {
-    static readonly Colors: {
-        SUCCESS: number;
-        ERROR: number;
-        WARNING: number;
-        INFO: number;
-        NEUTRAL: number;
+export declare class Embeds {
+    static Colors: {
+        SUCCESS: ColorResolvable;
+        ERROR: ColorResolvable;
+        WARNING: ColorResolvable;
+        INFO: ColorResolvable;
+        GOLD: ColorResolvable;
     };
-    static createEmbed(opts: {
+    static build(o: {
         title?: string;
         description?: string;
         color?: ColorResolvable;
@@ -22,9 +22,9 @@ export declare class EmbedUtils {
         };
         timestamp?: boolean;
     }): EmbedBuilder;
-    static success(title: string, desc?: string): EmbedBuilder;
-    static error(title: string, desc?: string): EmbedBuilder;
-    static warning(title: string, desc?: string): EmbedBuilder;
-    static info(title: string, desc?: string): EmbedBuilder;
+    static ok(t: string, d?: string): EmbedBuilder;
+    static err(t: string, d?: string): EmbedBuilder;
+    static warn(t: string, d?: string): EmbedBuilder;
+    static info(t: string, d?: string): EmbedBuilder;
 }
-export default EmbedUtils;
+export default Embeds;

@@ -1,17 +1,17 @@
 {
-  "name": "discord-loa-bot",
-  "version": "2.0.0",
-  "description": "Discord LOA bot with role whitelist – production-ready",
+  "name": "loa-bot-apex",
+  "version": "6.0.0",
+  "description": "Apex Discord LOA Bot – flawless, self-hosted, luxury",
   "main": "dist/index.js",
   "engines": {
     "node": ">=18.0.0"
   },
   "scripts": {
     "build": "rimraf dist && tsc",
+    "prestart": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "deploy": "tsx src/deploy-commands.ts",
-    "prestart": "npm run build"
+    "deploy": "tsx src/deploy-commands.ts"
   },
   "dependencies": {
     "discord.js": "^14.14.1",

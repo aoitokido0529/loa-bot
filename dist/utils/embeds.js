@@ -1,30 +1,36 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EmbedUtils = void 0;
+exports.Embeds = void 0;
 const discord_js_1 = require("discord.js");
-class EmbedUtils {
-    static Colors = { SUCCESS: 0x57F287, ERROR: 0xED4245, WARNING: 0xFEE75C, INFO: 0x5865F2, NEUTRAL: 0x2F3136 };
-    static createEmbed(opts) {
-        const embed = new discord_js_1.EmbedBuilder();
-        if (opts.title)
-            embed.setTitle(opts.title);
-        if (opts.description)
-            embed.setDescription(opts.description);
-        if (opts.color)
-            embed.setColor(opts.color);
-        if (opts.fields)
-            embed.addFields(opts.fields);
-        if (opts.footer)
-            embed.setFooter(opts.footer);
-        if (opts.timestamp !== false)
-            embed.setTimestamp();
-        return embed;
+class Embeds {
+    static Colors = {
+        SUCCESS: 0x57F287,
+        ERROR: 0xED4245,
+        WARNING: 0xFEE75C,
+        INFO: 0x5865F2,
+        GOLD: 0xCFB87C,
+    };
+    static build(o) {
+        const e = new discord_js_1.EmbedBuilder();
+        if (o.title)
+            e.setTitle(o.title);
+        if (o.description)
+            e.setDescription(o.description);
+        if (o.color)
+            e.setColor(o.color);
+        if (o.fields)
+            e.addFields(o.fields);
+        if (o.footer)
+            e.setFooter(o.footer);
+        if (o.timestamp !== false)
+            e.setTimestamp();
+        return e;
     }
-    static success(title, desc) { return this.createEmbed({ title: '✅ ' + title, description: desc, color: this.Colors.SUCCESS }); }
-    static error(title, desc) { return this.createEmbed({ title: '❌ ' + title, description: desc, color: this.Colors.ERROR }); }
-    static warning(title, desc) { return this.createEmbed({ title: '⚠️ ' + title, description: desc, color: this.Colors.WARNING }); }
-    static info(title, desc) { return this.createEmbed({ title: 'ℹ️ ' + title, description: desc, color: this.Colors.INFO }); }
+    static ok(t, d) { return this.build({ title: '✅ ' + t, description: d, color: this.Colors.SUCCESS }); }
+    static err(t, d) { return this.build({ title: '❌ ' + t, description: d, color: this.Colors.ERROR }); }
+    static warn(t, d) { return this.build({ title: '⚠️ ' + t, description: d, color: this.Colors.WARNING }); }
+    static info(t, d) { return this.build({ title: 'ℹ️ ' + t, description: d, color: this.Colors.INFO }); }
 }
-exports.EmbedUtils = EmbedUtils;
-exports.default = EmbedUtils;
+exports.Embeds = Embeds;
+exports.default = Embeds;
 //# sourceMappingURL=embeds.js.map
